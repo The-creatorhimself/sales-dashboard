@@ -1,0 +1,283 @@
+<title>Store Sales Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one hero chart (monthly revenue) under a KPI strip, then four small panels in a wrapping grid. */
+:root {
+  --bg: #f3f7f7;
+  --surface: #ffffff;
+  --ink: #12292b;
+  --muted: #587073;
+  --grid: #dce6e7;
+  --line: #cbd9da;
+  --accent: #0b7285;
+  --accent-soft: rgba(11, 114, 133, 0.12);
+  --neutral-mark: #9db3b6;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c181a; --surface: #132326; --ink: #e5eff0; --muted: #93aaac;
+    --grid: #233639; --line: #2f4548; --accent: #4fb8cc;
+    --accent-soft: rgba(79, 184, 204, 0.16); --neutral-mark: #577073;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c181a; --surface: #132326; --ink: #e5eff0; --muted: #93aaac;
+  --grid: #233639; --line: #2f4548; --accent: #4fb8cc;
+  --accent-soft: rgba(79, 184, 204, 0.16); --neutral-mark: #577073;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header h1 { margin: 0; font-size: clamp(22px, 4vw, 30px); line-height: 1.15; font-weight: 700; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.kpi .label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.kpi .value { font-family: var(--font-num); font-size: 26px; font-weight: 500; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.panel .takeaway { margin: 4px 0 14px; color: var(--muted); font-size: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+#line { position: relative; width: 100%; }
+#line svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.axis text { fill: var(--muted); font-family: var(--font-num); font-size: 11px; }
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.bars li { display: grid; grid-template-columns: minmax(84px, 132px) 1fr auto; align-items: center; gap: 10px; padding: 4px 0; cursor: default; }
+.bars .name { font-size: 14px; overflow-wrap: anywhere; }
+.bars .track { height: 14px; background: var(--grid); border-radius: 0 4px 4px 0; }
+.bars .fill { height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 2px; }
+.bars .val { font-family: var(--font-num); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; min-width: 64px; }
+.bars li:hover .name { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+.split { display: flex; height: 36px; gap: 2px; margin: 6px 0 12px; }
+.split div { display: flex; align-items: center; padding: 0 10px; font-family: var(--font-num); font-size: 13px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.split .rep { background: var(--accent); color: var(--surface); border-radius: 4px 0 0 4px; }
+.split .one { background: var(--neutral-mark); color: var(--surface); border-radius: 0 4px 4px 0; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+details { margin-top: 14px; }
+summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+.tablewrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+td.num, th.num { text-align: right; font-family: var(--font-num); }
+footer { color: var(--muted); font-size: 13px; }
+footer a { color: var(--accent); }
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; opacity: 0;
+  background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 6px;
+  font-size: 12.5px; line-height: 1.35; max-width: 220px; transition: opacity 0.08s;
+}
+.tip b { font-family: var(--font-num); font-weight: 500; }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Store Sales Dashboard</h1>
+    <p>Five Nigerian cities, 24 products, 21 months of orders. Built with plain HTML, CSS and JavaScript from the data in my SQL case study.</p>
+  </header>
+
+  <section class="kpis" aria-label="Key figures">
+    <div class="kpi"><div class="label">Revenue</div><div class="value" id="k-rev"></div></div>
+    <div class="kpi"><div class="label">Orders</div><div class="value" id="k-ord"></div></div>
+    <div class="kpi"><div class="label">Customers</div><div class="value" id="k-cus"></div></div>
+    <div class="kpi"><div class="label">Avg order value</div><div class="value" id="k-aov"></div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Monthly revenue</h2>
+    <p class="takeaway">Revenue climbed from ₦0.3M in January 2024 to a peak of ₦15.3M in August 2025. September 2025 is a partial month (data ends 27 Sep).</p>
+    <div id="line" role="img" aria-label="Line chart of monthly revenue in naira, January 2024 to September 2025"></div>
+    <details>
+      <summary>View as table</summary>
+      <div class="tablewrap"><table id="t-month"><thead><tr><th>Month</th><th class="num">Revenue (₦)</th></tr></thead><tbody></tbody></table></div>
+    </details>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Revenue by category</h2>
+      <p class="takeaway">Electronics leads with ₦26.8M, about 26% of all revenue.</p>
+      <ul class="bars" id="b-cat"></ul>
+    </section>
+    <section class="panel">
+      <h2>Top 5 products</h2>
+      <p class="takeaway">Five products each earn ₦7.4M to ₦8.2M, so no single hero product carries the store.</p>
+      <ul class="bars" id="b-prod"></ul>
+    </section>
+    <section class="panel">
+      <h2>Average order value by region</h2>
+      <p class="takeaway">Abuja has the highest average order. Lagos has the most orders (262) but one of the lowest averages.</p>
+      <ul class="bars" id="b-reg"></ul>
+    </section>
+    <section class="panel">
+      <h2>Repeat buyers</h2>
+      <p class="takeaway">About 3 in 4 customers ordered more than once.</p>
+      <div class="split" id="split" role="img"></div>
+      <div class="legend">
+        <span><i style="background:var(--accent)"></i>Repeat buyers (2+ orders)</span>
+        <span><i style="background:var(--neutral-mark)"></i>One-time buyers</span>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Sample data generated for a SQL case study, not a real business. Amounts are in naira (₦).
+    <a href="https://flax-stream-d28.notion.site/SQL-Case-Study-E-Commerce-Sales-Analysis-3e847aec218981a1949ed05c03c9744c" target="_blank" rel="noopener">Read the SQL case study</a>
+  </footer>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const DATA = {
+  monthly: [["2024-01",292139],["2024-02",118452],["2024-03",199440],["2024-04",467444],["2024-05",879836],["2024-06",1409391],["2024-07",1054027],["2024-08",2563257],["2024-09",1459157],["2024-10",4487095],["2024-11",3787568],["2024-12",5204804],["2025-01",5226033],["2025-02",5035988],["2025-03",6919853],["2025-04",8214038],["2025-05",7614187],["2025-06",9027537],["2025-07",11564414],["2025-08",15341547],["2025-09",11741692]],
+  category: [["Electronics",26763928],["Fashion",23226427],["Groceries",21627018],["Beauty",17244105],["Home & Kitchen",13746423]],
+  products: [["USB-C Cable","Electronics",246,8249979],["Cooking Oil","Groceries",258,8222217],["Face Mask Set","Beauty",222,8149669],["Sunglasses","Fashion",257,7650882],["Rice (5kg Bag)","Groceries",203,7420287]],
+  region: [["Abuja",220,103163],["Port Harcourt",208,102370],["Kano",176,98031],["Lagos",262,92412],["Ibadan",190,90283]],
+  repeat: [["One-time buyers",61],["Repeat buyers",189]],
+  totals: { orders: 1056, customers: 250, revenue: 102607900 }
+};
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const naira = v => "₦" + Math.round(v).toLocaleString("en-US");
+const nairaM = v => "₦" + (v / 1e6).toFixed(1) + "M";
+const nairaK = v => "₦" + Math.round(v / 1000) + "K";
+const monthName = ym => { const [y, m] = ym.split("-"); return MONTHS[+m - 1] + " " + y; };
+const $ = id => document.getElementById(id);
+
+/* KPIs */
+$("k-rev").textContent = nairaM(DATA.totals.revenue);
+$("k-ord").textContent = DATA.totals.orders.toLocaleString("en-US");
+$("k-cus").textContent = DATA.totals.customers.toLocaleString("en-US");
+$("k-aov").textContent = nairaK(DATA.totals.revenue / DATA.totals.orders);
+
+/* Tooltip */
+const tip = $("tip");
+function showTip(html, x, y) {
+  tip.innerHTML = html;
+  tip.style.opacity = 1;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let left = x + 14, top = y - h - 10;
+  if (left + w > window.innerWidth - 8) left = x - w - 14;
+  if (top < 8) top = y + 16;
+  tip.style.left = Math.max(8, left) + "px";
+  tip.style.top = top + "px";
+}
+const hideTip = () => { tip.style.opacity = 0; };
+
+/* Table view */
+$("t-month").querySelector("tbody").innerHTML = DATA.monthly
+  .map(([m, v]) => `<tr><td>${monthName(m)}</td><td class="num">${naira(v)}</td></tr>`).join("");
+
+/* Line chart */
+function drawLine() {
+  const box = $("line");
+  const W = Math.max(box.clientWidth, 280), H = W < 520 ? 240 : 300;
+  const m = { l: 46, r: 14, t: 14, b: 30 };
+  const data = DATA.monthly, n = data.length, MAX = 16e6;
+  const x = i => m.l + (i * (W - m.l - m.r)) / (n - 1);
+  const y = v => m.t + (1 - v / MAX) * (H - m.t - m.b);
+  const pts = data.map((d, i) => [x(i), y(d[1])]);
+  const path = arr => arr.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  let g = "";
+  for (let t = 0; t <= MAX; t += 4e6) {
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)" stroke-width="1"/>`;
+    g += `<text x="${m.l - 8}" y="${y(t) + 4}" text-anchor="end">${t ? t / 1e6 + "M" : "0"}</text>`;
+  }
+  const step = W < 520 ? 4 : 3;
+  data.forEach((d, i) => {
+    if (i % step === 0) {
+      const [yr, mo] = d[0].split("-");
+      g += `<text x="${x(i)}" y="${H - 8}" text-anchor="${x(i) > W - 30 ? "end" : "middle"}">${MONTHS[+mo - 1]} ${yr.slice(2)}</text>`;
+    }
+  });
+  const solid = pts.slice(0, n - 1), last = pts.slice(n - 2);
+  const area = path(solid) + ` L${solid[solid.length - 1][0]} ${y(0)} L${solid[0][0]} ${y(0)} Z`;
+  box.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="axis">
+      ${g}
+      <path d="${area}" fill="var(--accent-soft)"/>
+      <path d="${path(solid)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="${path(last)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 4"/>
+      <circle cx="${pts[n - 1][0]}" cy="${pts[n - 1][1]}" r="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+      <line id="cross" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>
+      <circle id="dot" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>
+      <rect id="hit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>
+    </svg>`;
+  const svg = box.querySelector("svg"), cross = svg.querySelector("#cross"), dot = svg.querySelector("#dot");
+  const move = e => {
+    const r = svg.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.min(n - 1, Math.max(0, Math.round(((px - m.l) / (W - m.l - m.r)) * (n - 1))));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(data[i][1])); dot.setAttribute("visibility", "visible");
+    const partial = i === n - 1 ? "<br>Partial month" : "";
+    showTip(`${monthName(data[i][0])}<br><b>${naira(data[i][1])}</b>${partial}`, e.clientX, e.clientY);
+  };
+  const leave = () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); hideTip(); };
+  svg.querySelector("#hit").addEventListener("pointermove", move);
+  svg.querySelector("#hit").addEventListener("pointerdown", move);
+  svg.querySelector("#hit").addEventListener("pointerleave", leave);
+}
+
+/* Horizontal bars */
+function bars(id, rows) {
+  const max = Math.max(...rows.map(r => r.value));
+  $(id).innerHTML = rows.map((r, i) => `
+    <li data-i="${i}">
+      <span class="name">${r.label}</span>
+      <span class="track"><span class="fill" style="display:block;width:${(r.value / max) * 100}%"></span></span>
+      <span class="val">${r.text}</span>
+    </li>`).join("");
+  $(id).querySelectorAll("li").forEach(li => {
+    const r = rows[+li.dataset.i];
+    const show = e => showTip(r.tip, e.clientX, e.clientY);
+    li.addEventListener("pointermove", show);
+    li.addEventListener("pointerdown", show);
+    li.addEventListener("pointerleave", hideTip);
+  });
+}
+const totalRev = DATA.totals.revenue;
+bars("b-cat", DATA.category.map(([c, v]) => ({
+  label: c, value: v, text: nairaM(v),
+  tip: `${c}<br><b>${naira(v)}</b><br>${((v / totalRev) * 100).toFixed(1)}% of revenue`
+})));
+bars("b-prod", DATA.products.map(([p, c, u, v]) => ({
+  label: p, value: v, text: nairaM(v),
+  tip: `${p} (${c})<br><b>${naira(v)}</b><br>${u} units sold`
+})));
+bars("b-reg", DATA.region.map(([r, o, a]) => ({
+  label: r, value: a, text: nairaK(a),
+  tip: `${r}<br><b>${naira(a)}</b> per order<br>${o} orders`
+})));
+
+/* Repeat vs one-time */
+(function () {
+  const one = DATA.repeat[0][1], rep = DATA.repeat[1][1], tot = one + rep;
+  const pr = ((rep / tot) * 100).toFixed(1), po = ((one / tot) * 100).toFixed(1);
+  const el = $("split");
+  el.setAttribute("aria-label", `${pr}% repeat buyers, ${po}% one-time buyers`);
+  el.innerHTML = `<div class="rep" style="flex:${rep}">${pr}%</div><div class="one" style="flex:${one}">${po}%</div>`;
+  const wire = (node, html) => {
+    const s = e => showTip(html, e.clientX, e.clientY);
+    node.addEventListener("pointermove", s); node.addEventListener("pointerdown", s); node.addEventListener("pointerleave", hideTip);
+  };
+  wire(el.querySelector(".rep"), `Repeat buyers<br><b>${rep}</b> customers (${pr}%)`);
+  wire(el.querySelector(".one"), `One-time buyers<br><b>${one}</b> customers (${po}%)`);
+})();
+
+drawLine();
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawLine, 120); });
+</script>
